@@ -1,0 +1,38 @@
+FROM python:3.11-slim
+
+ENV VLLM_TARGET_DEVICE=cpu \
+    PIP_NO_CACHE_DIR=1 \
+    PYTHONDONTWRITEBYTECODE=1 \
+    # avoid AVX-512 at runtime on older CPUs (safe default)
+    ONEDNN_MAX_CPU_ISA=AVX2
+
+# Build deps (added: cmake, make, ninja-build, libnuma-dev)
+RUN apt-get update -y && \
+    apt-get install -y gcc-12 g++-12 git cmake make ninja-build libnuma-dev && \
+    update-alternatives --install /usr/bin/gcc gcc /usr/bin/gcc-12 10 --slave /usr/bin/g++ g++ /usr/bin/g++-12 && \
+    rm -rf /var/lib/apt/lists/*
+
+# Base wheels
+RUN pip install --upgrade pip && \
+    pip install wheel packaging ninja "setuptools>=49.4.0" numpy
+
+# Bring in the source (you cloned next to this Dockerfile)
+COPY . /vllm
+WORKDIR /vllm
+
+# Handle either requirements path (repo layout changes sometimes)
+RUN if [ -f requirements/cpu.txt ]; then \
+        pip install -v -r requirements/cpu.txt --extra-index-url https://download.pytorch.org/whl/cpu ; \
+    else \
+        pip install -v -r requirements-cpu.txt --extra-index-url https://download.pytorch.org/whl/cpu ; \
+    fi
+
+# Some builds need this explicitly
+RUN pip install -v setuptools_scm --extra-index-url https://download.pytorch.org/whl/cpu
+
+# Build & install vLLM from source
+RUN python setup.py install
+
+EXPOSE 8000
+
+CMD ["python", "vllm/entrypoints/openai/api_server.py"]
