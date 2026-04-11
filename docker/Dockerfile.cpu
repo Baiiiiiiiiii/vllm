@@ -90,6 +90,12 @@ FROM base AS vllm-build
 ARG max_jobs=32
 ENV MAX_JOBS=${max_jobs}
 
+# Submodule or export trees often ship without a resolvable git root inside the build context;
+# setuptools-scm then fails. setup.py honors VLLM_VERSION_OVERRIDE (see get_vllm_version).
+# Pass from the host, e.g. --build-arg VLLM_VERSION_OVERRIDE="$(git describe --tags --always)"
+ARG VLLM_VERSION_OVERRIDE=
+ENV VLLM_VERSION_OVERRIDE=${VLLM_VERSION_OVERRIDE}
+
 ARG GIT_REPO_CHECK=0
 # Support for building with non-AVX512 vLLM: docker build --build-arg VLLM_CPU_DISABLE_AVX512="true" ...
 ARG VLLM_CPU_DISABLE_AVX512=0
